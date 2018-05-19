@@ -6,6 +6,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 import pandas as pd
 import numpy as np
+from multiprocessing import Pool
+from functools import partial
 
 class ModelFactory(object):
     def __init__(self, model_type):
@@ -48,7 +50,7 @@ class RFCModel(ModelBase):
     def build_model(self):
         return RandomForestClassifier()
     
-def run_cross_validation_models(df, kfold_value, model_type):
+def run_cross_validation_models(df, kfold_value, model_type, iterable=None):
     kf = KFold(n_splits = kfold_value, random_state=None, shuffle=False)
     y_cols = 1
     x_cols = list(set(df.columns) - {0, 1})
@@ -77,8 +79,10 @@ def run_cross_validation_models(df, kfold_value, model_type):
     
     if abs(cv_mean - mean_value) <= min(cv_std, std_value):
         print('Cross Validation Means within the min of the STDs with model {}'.format(model_type))
+        return 1
     else:
         print('Cross Validation Means outside the min of the STDs with model {}'.format(model_type))
+        return 0
     
 
 NEURAL_NET_MODEL = 0
@@ -89,8 +93,16 @@ def main():
                    +  '\\KFoldsValidation\\WisconsinBreastCancer\\wdbc_data_abclean.csv',
                    header=None)
     kfold_value = 5
-    for model_type in [NEURAL_NET_MODEL, SVM_MODEL, RFC_MODEL]:        
-        run_cross_validation_models(df, kfold_value, model_type)
+    multiple_runs = False
+    multiple_run_count = 100
+    for model_type in [NEURAL_NET_MODEL, SVM_MODEL, RFC_MODEL]:
+        if multiple_runs:
+            pool = Pool()
+            partial_cross_val = partial(run_cross_validation_models, df, kfold_value, model_type)
+            results = pool.map(partial_cross_val, [i for i in range(multiple_run_count)])
+            print('{} Percentage of Model Type {} had means fall within the min of the STDs of the models'.format(np.mean(results)*100, model_type))
+        else:
+            run_cross_validation_models(df, kfold_value, model_type)
 
 if __name__ == '__main__':
     main()
